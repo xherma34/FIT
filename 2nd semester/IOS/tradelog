@@ -1,0 +1,555 @@
+#!/bin/bash
+
+export POSSIXLY_CORRECT=yes
+export LC_NUMERIC=en_US.UTF-8
+
+_help()
+{
+    echo "USAGE: tradelog [-h || --help]"
+    echo "       tradelog [FILTER] [COMMAND] [INPUT FILE]"
+    echo ""
+    echo "COMMANDS: lze zadat pouze jeden"
+    echo "          list-tick:      Vypíše seznam tickerů"
+    echo "          profit:         Vypíše zisk z uzavřených pozic"
+    echo "          pos:            Vypíše hodnotu aktuálně držených pozic seřazených sestupně dle hodnoty"
+    echo "          last-price:     Vypíše poslední známé ceny pro každý ticker"
+    echo "          hist-ord:       Vypíše histogram počtu transakcí dle tickeru"
+    echo "          graph-pos:      Vypíše graf hodnot držených pozic dle tickeru"
+    echo ""
+    echo "FILTERS:  lze zadat více"
+    echo "          -a DATETIME:    -after: Vypíše záznamy pouze po tomto datu"
+    echo "              #DATETIME je formátu YYYY-MM-DD HH:MM:SS"
+    echo "          -b DATETIME:    -before: Vypíše záznamy pouze před tímto datem"
+    echo "              #DATETIME je formátu YYYY-MM-DD HH:MM:SS"
+    echo "          -t TICKER:      Vypíše záznamy pouze k danému tickeru, při využití přepínače vícekrát se vybere množina tickerů"
+    echo "              #TICKER je formátu velkých písmen"
+    echo "          -w WIDTH:       Nastaví šířku výpisu, nelze využívat přepínač vícekrát"
+    echo "              #WIDTH je celé číslo větší než nula"
+}
+
+_filter()
+{
+    echo "[FILTER_ERROR]:"
+    echo "Filter byl zadán ve špatném formátu"
+    echo "Spouštění s argumentem filter musí být zadáno ve formátu: "
+    echo "-------------------------------------------------------------------------"
+    echo "./tradelog.sh -[pismeno filteru] [hodnota podle ktere chcete filtrovat]"
+    echo "-------------------------------------------------------------------------"
+    echo "Pro bližší informace o argumentech můžete spustit soubor s řadičem -h || --help" 
+}
+
+_command()
+{
+    echo "[COMMAND_ERROR]:"
+    echo "Command byl zadán více než jednoukrát"
+    echo "Pro bližší informace o argumentech můžete spustit soubor s řadičem -h || --help"
+}
+
+_time()
+{
+    echo "[FILTER_ERROR]:"
+    echo "Špatně zadaný časový formát filteru -a DATETIME || -b DATETIME"
+    echo "#DATETIME je formátu YYYY-MM-DD HH:MM:SS"
+    echo "Pro bližší informace o argumentech můžete spustit soubor s řadičem -h || --help"
+}
+
+_width()
+{
+    echo "[FILTER_ERROR]:"
+    echo "Špatně zadaný údaj filteru -w"
+    echo "#WIDTH je celé číslo větší než nula"
+    echo "Pro bližší informace o argumentech můžete spustit soubor s řadičem -h || --help"
+}
+
+COMMAND=""
+INPUT=""
+AFTER_DT="0000-00-00 00:00:00"
+BEFORE_DT="9999-99-99 99:99:99"
+TICKER=""
+WIDTH=0
+COUNT=0
+T_BOOL=0
+GZ_INPUT=""
+GZ_BOOL=0
+INPUT_BOOL=0
+COMMAND_COUNT=0
+TIME_LEN=19
+
+#Argument handlerer
+
+    while [ "$#" -gt 0 ]
+    do
+        #Help flags
+        case "$1" in
+        -h | --help )
+            _help
+            exit 0
+            ;;
+        #Input files
+        *.log )
+            INPUT="$1 $INPUT"
+            INPUT_BOOL=1
+            shift
+            ;;
+        *.gz )
+            GZ_INPUT="$1"
+            GZ_BOOL=1
+            shift
+            ;;
+        #Command handlerer
+        list-tick | profit | pos | last-price | hist-ord | graph-pos )
+            COMMAND="$1"
+            COMMAND_COUNT+=1
+                #COmmand count handling
+            if [ $COMMAND_COUNT -gt 1 ]
+            then
+                _command
+                exit 0
+            fi
+            shift
+            ;;
+        #Filter handlerer
+        -a )
+            AFTER_DT="$2|$AFTER_DT"
+            shift
+            shift
+            ;;
+        -b )
+            BEFORE_DT="$2|$BEFORE_DT"
+            shift
+            shift
+            ;;
+        -t )
+            TICKER="$2|$TICKER"
+            T_BOOL=1
+                #Second option to syntax: count+=1
+            COUNT=$((COUNT+1))
+            shift
+            shift
+            ;;
+        -w )
+            WIDTH="$2"
+            shift
+            shift
+            ;;
+        * )
+            echo "[ERROR]: Chybně zadané argumenty"
+            echo "         Pro bližší informace o argumentech můžete spustit soubor s řadičem -h || --help"
+            exit 0
+            ;;
+        esac
+    done
+
+##Check for right -t usage
+case "$TICKER" in
+    *.gz | *.log | list-tick | profit | pos | last-price | hist-ord | graph-pos | -a | -t | -b | -w | -h | --help)
+        _filter
+        exit 0
+        ;;
+esac
+
+#Width handlerer
+if [ $WIDTH -lt 0 ]
+then
+    _width
+    exit 0
+fi
+
+#Switch to get output files
+if [ $INPUT_BOOL -eq 1 ]
+then
+    OUTPUT=$(cat $INPUT)
+fi
+
+if [ $GZ_BOOL -eq 1 ]
+then
+    OUTPUT+=$(zcat $GZ_INPUT)
+fi
+
+if [ $INPUT_BOOL -eq 0 ] && [ $GZ_BOOL -eq 0 ]
+then
+    if [ -t 0 ]
+    then
+        exit 0
+    else
+        OUTPUT=$(cat /dev/stdin)
+    fi
+fi
+
+OUTPUT=$(echo "$OUTPUT" | \
+awk \
+-F';' \
+-v after="$AFTER_DT" \
+-v before="$BEFORE_DT" \
+-v tickers="$TICKER" \
+-v count="$COUNT" \
+-v t_bool="$T_BOOL" \
+'{
+        #Time interval handling
+    split(after, after_array, "|")
+    split(before, before_array, "|")
+
+    for(x in after_array)
+    {
+        if(max_dt < after_array[x])
+        {
+            max_dt = after_array[x]
+        }
+    }
+
+    min_dt = "9999-99-99 99:99:99"
+
+    for(x in before_array)
+    {
+        if(min_dt > before_array[x])
+        {
+            min_dt = before_array[x]
+        }
+    }
+
+
+        #Splits tickers from arg to array
+    split(tickers, array, "|")
+        #Time range filter
+    if($1 > max_dt && $1 < min_dt)
+    {
+            #Ticker filter
+        if(t_bool == 1)
+        {
+                #Cycle to go through every ticker stored in array on every line
+            for(x=0; x<=count; x++)
+            {
+                if($2 == array[x])
+                {
+                    print
+                }
+            }
+        }
+        else
+        {
+            print 
+        }
+    }
+}' |
+awk \
+-F';' \
+-v command="$COMMAND" \
+-v profit=0 \
+-v OFMT='%.2f' \
+-v longest=0 \
+-v width="$WIDTH" \
+-v posHighest=0 \
+-v negHighest=0 \
+'{
+    #GETTING COMMAND VALUES
+    #TODO udelat mene kokotskou cestou :]
+    if(command == "list-tick")
+    {
+        listMe[$2] = $2
+    }
+    else if(command == "profit")
+    {
+            #calculation of profit
+        if($3 == "buy")
+        {
+            profit = profit - ($4*$6)
+        }
+        else if($3 == "sell")
+        {
+            profit = profit + ($4*$6)
+        }
+    }
+    else if (command == "last-price")
+    {
+            #Initialization of array tickerArray which is indexed with name of ticker with its value
+        tickerArray[$2] = $4
+            #Getting the longest number from array
+        if(longest < length(tickerArray[$2]))
+        {
+            longest = length(tickerArray[$2])
+        }
+    }
+    else if (command == "pos" || command == "graph-pos")
+    {
+        latestValue[$2] = $4
+        if($3 == "buy")
+        {
+            tickerArray[$2] = tickerArray[$2] + $6
+        }
+        else if($3 == "sell")
+        {
+            tickerArray[$2] = tickerArray[$2] - $6
+        }
+    }
+    else if (command == "hist-ord")
+    {
+        tickerArray[$2] += 1   
+    }
+    else
+    {
+        print 
+    }
+    
+} END { 
+    #EXECUTING AND PRINTING COMMANDS
+        #profit command execute
+    if(command == "profit")
+    {
+        printf("%.2f", profit)
+    }
+        #List-tick command execute
+    else if(command == "list-tick")
+    {
+        for(key in listMe)
+        {
+            printf(listMe[key]"\n")
+        }
+    }
+        #Last-price command execute
+    else if(command == "last-price")
+    {
+            #PRINT HANDLE
+        for(key in tickerArray)
+        {
+            keyLen = length(key)
+            lenTick = length(tickerArray[key])
+
+                #TSM
+            printf(key)
+
+                #fill spaces
+            for(x=(10-keyLen); x>0; x--)
+            {
+                printf(" ")
+            }
+
+                #fill":" -> TSM      :
+            printf(":")
+
+                #fill rest -> TSM      :      XXX
+            for(x=(longest+1-lenTick); x>0; x--)
+            {
+                printf(" ")
+            }
+            printf(tickerArray[key] "\n")
+        }
+    }
+        #POS command execute
+    else if(command == "pos")
+    {   
+            #Calculation of pos
+        for (key in tickerArray)
+        {
+
+                #Getting print value which is = number of ticker flow*latest price of ticker
+            tickerArray[key] = tickerArray[key]*latestValue[key]
+
+            holder = int(tickerArray[key])+3
+
+                #getting longest value
+            if(longest < length(holder))
+            {
+                longest = length(holder)
+            }
+        }
+            #Printing cycle
+        for (key in tickerArray)
+        {
+                #gettint lengths of values to print
+            keyLen = length(key)
+
+            holder = int(tickerArray[key])+3
+            tickLen = length(holder)
+
+                #Key print with spaces
+            printf(key)
+            for(x=(10-keyLen); x>0; x--)
+            {
+                printf(" ")
+            }
+            printf(": ")
+            for(y=(longest-tickLen); y>0; y--)
+            {
+                printf(" ")
+            }
+            printf("%.2f\n", tickerArray[key]) 
+        }
+    }
+    else if(command == "hist-ord")
+    {
+        for(key in tickerArray)
+        {
+            if(longest < tickerArray[key])
+            {
+                longest = tickerArray[key]
+            }
+        }
+        const = width/longest
+
+        for(key in tickerArray)
+        {
+                #length set
+            keyLen = length(key)
+            tickLen = length(tickerArray[key])
+                
+                #getting scaled print value
+            tickerVal = const*tickerArray[key]
+            tickerVal = int(tickerVal)
+
+                #Key print with spaces
+            printf(key)
+            for(x=(10-keyLen); x>0; x--)
+            {
+                printf(" ")
+            }
+            printf(":")
+            printf(" ")
+            if(width == 0)
+            {
+                    #print "#" for every value of tickerArray
+                for(x=tickerArray[key]; x>0; x--)
+                {
+                    printf("#")
+                }
+                printf("\n")
+            }
+            else
+            {
+                    #print "#" for every value of tickerArray     
+                for(x=tickerVal; x>0; x--)
+                {
+                    printf("#")
+                }
+                printf("\n")      
+            }
+        }
+    }
+    else if(command == "graph-pos")
+    {
+            #Calculate value of tickers
+        for (key in tickerArray)
+        {
+                #Getting print value which is = number of ticker flow*latest price of ticker
+            tickerArray[key] = tickerArray[key]*latestValue[key]
+                #getting longest value
+            if(posHighest < tickerArray[key])
+            {
+                posHighest = tickerArray[key]
+            }
+            else if(negHighest > tickerArray[key])
+            {
+                negHighest = tickerArray[key]
+            }
+        }
+
+        negHighest = negHighest*(-1)
+
+            #Getting highest/lowest value
+        if(posHighest > negHighest)
+        {
+            highest = posHighest
+
+                #GetConst
+            const = width/highest
+        }
+        else
+        {
+            highest = negHighest
+
+                #GetConst
+            const = width/highest
+        }
+
+            #Print cycle
+        for(key in tickerArray)
+        {
+
+            keyLen = length(key)
+
+
+                #Getting print val with width set
+            tickerVal = const*tickerArray[key]
+            tickerVal = int(tickerVal)
+
+                #Key print with spaces
+            printf(key)
+
+                #first half print
+            for(x=(10-keyLen); x>0; x--)
+            {
+                printf(" ")
+            }
+            printf(":")
+            printf(" ")
+            if(int(tickerArray[key]) != 0)
+            {
+                printf(" ")
+            }
+            if(width == 0)
+            {
+                    #Getting number of #/!
+                tickerArray[key] = tickerArray[key]/1000
+
+                    #Case if value is > 0
+                if(tickerArray[key] > 0)
+                {
+                    for(y=(tickerArray[key]); y>0; y--)
+                    {
+                        printf("#")
+                    }
+                }
+                    #Case if value is < 0
+                else if(tickerArray[key] < 0)
+                {
+                    for(y=(tickerArray[key]); y<0; y++)
+                    {
+                        printf("!")
+                    }
+                }
+            }
+            else
+            {
+                    #Case if value is > 0
+                if(tickerArray[key] > 0)
+                {
+                    for(y=tickerVal; y>0; y--)
+                    {
+                        printf("#")
+                    }
+                }
+                    #Case if value is < 0
+                else if(tickerArray[key] < 0)
+                {
+                    for(y=tickerVal; y<0; y++)
+                    {
+                        printf("!")
+                    }    
+                }
+            }
+                printf("\n")
+        }
+    }
+} '
+)
+
+#TODO dodelat if za |
+
+if [ "$COMMAND" == "pos" ]
+then
+    echo "$OUTPUT" | sort -rn -k3
+elif [ "$COMMAND" == "list-tick" ]
+then
+    echo "$OUTPUT" | sort -k1
+elif [ "$COMMAND" == "last-price" ]
+then
+    echo "$OUTPUT" | sort -k1
+elif [ "$COMMAND" == "hist-ord" ]
+then
+    echo "$OUTPUT" | sort -k1
+elif [ "$COMMAND" == "graph-pos" ]
+then
+    echo "$OUTPUT" | sort -k1
+else
+    echo "$OUTPUT"
+fi
+

@@ -1,0 +1,49 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[left=2cm,text={17cm,24cm},top=3cm]{geometry}
+\usepackage[czech]{babel}
+\usepackage[unicode, hidelinks]{hyperref}
+
+\begin{document}
+
+\begin{titlepage}
+
+    \begin{center}
+        \Huge
+        \textsc{Vysoké učení technické v Brně\\\huge{Fakulta informačních technologií} }\\
+        \vspace{\stretch{0,381966}}
+        \LARGE{Typografie a publikování -- 4. projekt\\}
+        \Huge{Citace}
+        \vspace{\stretch{0,61034}}
+    \end{center}
+    \LARGE{\today} 
+    \hfill
+    \LARGE{Pavel Heřmann}
+\end{titlepage}
+
+\section{Co je \LaTeX ?}
+\LaTeX~je softwarový systém pro tvorbu dokumentů. Jedná se o balík maker programu \\ \TeX (viz \cite{TexArticle}.), který přináší širokou perspektivu při sázení textů ve vysoké kvalitě viz \cite{BritannicaOnline}. \par 
+Při tvorbě textu v \LaTeX u využívá tvůrce tzv. \textbf{plain text}(čistý text), který je doprovázen formátovacími příkazy, kvůli kterým je nutno dokument následně překládat viz \cite{RybickaBook}. \par
+
+\section{Historie \LaTeX u}
+\LaTeX~byl původně vytvořen Lesliem Lamportem na počátku 80.let 20.století se záměrem zpřístupnit možnosti \TeX~u široké veřejnosti. \LaTeX~je odjakživa distribuován pod \LaTeX~Project Public License (LPPL) \par 
+\TeX~jako takový byl vytvořen z většiny Donaldem Knuthem na konci 70.let 20.století více viz. \cite{SwetavaOnline}
+
+\section{Možnosti \LaTeX u}
+Latex nabízí širokou škálu možností formátování jak vzhledu stránek, tak textu samotného. Mezi nejsilnější stránku určitě patří matematická sazba viz \cite{MathOnline}. Při přepnutí do matematického módu například pomocí použití \verb=${..}$= uvnitř pole můžeme jednoduše sázet například horní a spodní index, zlomky, znaky a mnoho dalších viz \cite{KocbachOnline}. \par
+Další výhodou \LaTeX u  je například možnost grafiky \cite{GoossensBook}. Samotný \LaTeX~dokáže například vykreslování vektorů, dále se dají začlěňovat externí grafické soubory, nebo se dají využít externí grafické prostředky viz \cite{BunkaThesis}
+
+\section{Editory}
+\subsection{Offline Editory}
+Na trhu najdeme širokou škálu offline editorů, jako například jeden z nejpopulárnějších open source editorů \textbf{TeXmaker}\footnote{\url{https://www.xm1math.net/texmaker/}}. \par
+Nevýhodou offline editorů je například to, že nejsou dostupné na všech platformách a proces psaní dokumentu může například u nováčka trvat déle.
+
+\subsection{Online Editory}
+Na trhu je opět široká škála online editorů viz \cite{SokolThesis}., které jsou volně přístupné pro každého s připojením k internetu. Mezi jeden z nejznámějších patří například \textbf{Overleaf}\footnote{\url{https://www.overleaf.com/}} \par
+Velkou výhodou online editorů je jejich dostupnost. Většina z nich podporuje automatickou kompilaci a jednodušší přístup více viz \cite{MashitaArticle}.
+
+\newpage
+\bibliographystyle{czechiso}
+\bibliography{proj4}
+
+\end{document}
